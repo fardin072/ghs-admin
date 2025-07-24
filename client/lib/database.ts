@@ -1,5 +1,6 @@
 import Dexie, { Table } from "dexie";
 
+// Student Interface
 export interface Student {
   id?: number;
   name: string;
@@ -9,6 +10,7 @@ export interface Student {
   group?: string; // For classes 9-10
 }
 
+// Mark Interface
 export interface Mark {
   id?: number;
   studentId: number;
@@ -25,6 +27,7 @@ export interface Mark {
   gradePoint: number;
 }
 
+// Database class extends Dexie
 export class SchoolDatabase extends Dexie {
   students!: Table<Student>;
   marks!: Table<Mark>;
@@ -41,7 +44,7 @@ export class SchoolDatabase extends Dexie {
 
 export const db = new SchoolDatabase();
 
-// Helper functions for grading
+// Helper function for grading
 export const calculateGrade = (
   percentage: number,
 ): { grade: string; gradePoint: number } => {
@@ -69,7 +72,7 @@ export const getSubjectsByClassAndGroup = (
       "Mathematics",
       "Science & Technology",
       "Bangladesh & Global Studies",
-      "Digital Technology (ICT)",
+      "Digital Technology (ICT)",  // Include ICT for all classes 6-8
       "Religion & Moral Education",
       "Health & Physical Ed.",
       "Agriculture",
@@ -79,14 +82,13 @@ export const getSubjectsByClassAndGroup = (
 
   // Classes 9-10 (Group-based subjects)
   if (classNum >= 9 && classNum <= 10) {
-    // Common subjects for all groups in classes 9-10
     const commonSubjects = [
       "Bangla 1st Paper",
       "Bangla 2nd Paper",
       "English 1st Paper",
       "English 2nd Paper",
       "Mathematics",
-      "Digital Technology (ICT)",
+      "Digital Technology (ICT)",  // Include ICT for classes 9-10
       "Religion & Moral Education",
     ];
 
@@ -117,6 +119,7 @@ export const getSubjectsByClassAndGroup = (
   return [];
 };
 
+// Get groups for classes 9-10
 export const getGroups = (classNum: number): string[] => {
   if (classNum >= 9 && classNum <= 10) {
     return ["Science", "Business Studies", "Humanities"];
@@ -135,6 +138,16 @@ export interface SubjectMarkingScheme {
 export const getSubjectMarkingScheme = (
   subject: string,
 ): SubjectMarkingScheme => {
+  // ICT subject: Written (10) + MCQ (15) + Practical (25) = 50
+  if (subject === "Digital Technology (ICT)") {
+    return {
+      written: 10,
+      mcq: 15,
+      practical: 25,
+      total: 50,
+    };
+  }
+
   // English 1st and 2nd papers: Written only (max 100)
   if (subject === "English 1st Paper" || subject === "English 2nd Paper") {
     return {
