@@ -207,14 +207,14 @@ export function MarkEntry() {
 
   // Get marking scheme for selected subject
   const markingScheme = selectedSubject
-    ? getSubjectMarkingScheme(selectedSubject)
+    ? getSubjectMarkingScheme(selectedSubject, parseInt(selectedClass))
     : null;
 
   const handleSaveMarks = async () => {
     setSaving(true);
     try {
       // Validate marks against marking scheme
-      const scheme = getSubjectMarkingScheme(selectedSubject);
+      const scheme = getSubjectMarkingScheme(selectedSubject, parseInt(selectedClass));
       const validationErrors: string[] = [];
 
       studentMarks.forEach((studentMark) => {

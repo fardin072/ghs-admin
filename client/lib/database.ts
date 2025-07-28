@@ -137,46 +137,117 @@ export interface SubjectMarkingScheme {
 
 export const getSubjectMarkingScheme = (
   subject: string,
+  classNum: number
 ): SubjectMarkingScheme => {
-  // ICT subject: Written (10) + MCQ (15) + Practical (25) = 50
-  if (subject === "Digital Technology (ICT)") {
-    return {
-      written: 10,
-      mcq: 15,
-      practical: 25,
-      total: 50,
-    };
+  // Only for Classes 6-8, Bangla 2nd and English 2nd paper have specific marking schemes
+  if (classNum >= 6 && classNum <= 8) {
+    // ICT subject: Written (10) + MCQ (15) + Practical (25) = 50
+    if (subject === "Digital Technology (ICT)") {
+      return {
+        written: 10,
+        mcq: 15,
+        practical: 25,
+        total: 50,
+      };
+    }
+
+    // English 2nd Paper: Written (35) + MCQ (15) = 50
+    if (subject === "English 2nd Paper") {
+      return {
+        written: 50,
+        mcq: 0,
+        practical: 0,
+        total: 50,
+      };
+    }
+
+    // Bangla 2nd Paper: Written (35) + MCQ (15) = 50
+    if (subject === "Bangla 2nd Paper") {
+      return {
+        written: 35,
+        mcq: 15,
+        practical: 0,
+        total: 50,
+      };
+    }
   }
 
-  // English 1st and 2nd papers: Written only (max 100)
-  if (subject === "English 1st Paper" || subject === "English 2nd Paper") {
+  // For Classes 9-10, all subjects remain the same (max 100)
+  if (classNum >= 9 && classNum <= 10) {
+    // English 1st Paper and Bangla 1st Paper remain max 100
+    if (subject === "English 1st Paper") {
+      return {
+        written: 100,
+        mcq: 0,
+        practical: 0,
+        total: 100,
+      };
+    }
+    if (subject === "Bangla 1st Paper") {
+      return {
+        written: 70,
+        mcq: 30,
+        practical: 0,
+        total: 100,
+      };
+    }
+
+    // English 2nd Paper and Bangla 2nd Paper remain max 100
+    if (subject === "English 2nd Paper") {
+      return {
+        written: 100,
+        mcq: 0,
+        practical: 0,
+        total: 100,
+      };
+    }
+    if (subject === "Bangla 2nd Paper") {
+      return {
+        written: 70,
+        mcq: 30,
+        practical: 0,
+        total: 100,
+      };
+    }
+
+    // ICT subject for Classes 9-10 remains max 50
+    if (subject === "Digital Technology (ICT)") {
+      return {
+        written: 10,
+        mcq: 15,
+        practical: 25,
+        total: 50,
+      };
+    }
+
+    // Science subjects: Written (50) + MCQ (25) + Practical (25) = 100
+    const scienceSubjects = [
+      "Higher Math / Agriculture",
+      "Higher Math",
+      "Physics",
+      "Chemistry",
+      "Biology",
+    ];
+
+    if (scienceSubjects.includes(subject)) {
+      return {
+        written: 50,
+        mcq: 25,
+        practical: 25,
+        total: 100,
+      };
+    }
+
+    // All other subjects: Written (70) + MCQ (30) = 100
     return {
-      written: 100,
-      mcq: 0,
+      written: 70,
+      mcq: 30,
       practical: 0,
       total: 100,
     };
   }
 
-  // Science subjects: Written (50) + MCQ (25) + Practical (25) = 100
-  const scienceSubjects = [
-    "Higher Math / Agriculture",
-    "Higher Math",
-    "Physics",
-    "Chemistry",
-    "Biology",
-  ];
-
-  if (scienceSubjects.includes(subject)) {
-    return {
-      written: 50,
-      mcq: 25,
-      practical: 25,
-      total: 100,
-    };
-  }
-
-  // All other subjects: Written (70) + MCQ (30) = 100
+  // Default case for any other scenarios
   return {
     written: 70,
     mcq: 30,

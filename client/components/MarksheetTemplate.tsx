@@ -1,5 +1,5 @@
 import { StudentMarksheet } from "@/pages/Marksheet";
-import { getSubjectMarkingScheme, getSubjectsByClassAndGroup } from "@/lib/database";
+import { getSubjectMarkingScheme } from "@/lib/database";
 
 interface MarksheetTemplateProps {
   marksheet: StudentMarksheet;
@@ -18,15 +18,12 @@ export function MarksheetTemplate({
     0,
   );
   const totalPossible = marksheet.marks.reduce((sum, mark) => {
-    const scheme = getSubjectMarkingScheme(mark.subject);
+    const scheme = getSubjectMarkingScheme(mark.subject, marksheet.student.class);
     return sum + scheme.total;
   }, 0);
 
   // Check if any subject is failed
   const hasFailedSubject = marksheet.marks.some((mark) => mark.grade === "F");
-
-  // Get all subjects dynamically based on student class and group (for 9-10)
-  const allSubjects = getSubjectsByClassAndGroup(marksheet.student.class, marksheet.student.group);
 
   return (
     <div
@@ -174,7 +171,7 @@ export function MarksheetTemplate({
               </tr>
             ) : (
               marksheet.marks.map((mark, index) => {
-                const scheme = getSubjectMarkingScheme(mark.subject);
+                const scheme = getSubjectMarkingScheme(mark.subject, marksheet.student.class);
                 return (
                   <tr
                     key={index}
@@ -184,13 +181,13 @@ export function MarksheetTemplate({
                       {mark.subject}
                     </td>
                     <td className="border border-gray-300 p-1 text-center align-middle">
-                      {scheme.written > 0 ? mark.theory || "0" : "-"}
+                      {scheme.written > 0 ? (mark.theory || "-") : "-"}
                     </td>
                     <td className="border border-gray-300 p-1 text-center align-middle">
-                      {scheme.mcq > 0 ? mark.mcq || "0" : "-"}
+                      {scheme.mcq > 0 ? (mark.mcq || "-") : "-"}
                     </td>
                     <td className="border border-gray-300 p-1 text-center align-middle">
-                      {scheme.practical > 0 ? mark.practical || "0" : "-"}
+                      {scheme.practical > 0 ? (mark.practical || "-") : "-"}
                     </td>
                     <td className="border border-gray-300 p-1 text-center align-middle font-bold bg-blue-50">
                       {mark.total}
