@@ -1,5 +1,5 @@
 import { StudentMarksheet } from "@/pages/Marksheet";
-import { getSubjectMarkingScheme } from "@/lib/database";
+import { getSubjectMarkingScheme, getSubjectsByClassAndGroup } from "@/lib/database";
 
 interface MarksheetTemplateProps {
   marksheet: StudentMarksheet;
@@ -24,6 +24,9 @@ export function MarksheetTemplate({
 
   // Check if any subject is failed
   const hasFailedSubject = marksheet.marks.some((mark) => mark.grade === "F");
+
+  // Get all subjects dynamically based on student class and group (for 9-10)
+  const allSubjects = getSubjectsByClassAndGroup(marksheet.student.class, marksheet.student.group);
 
   return (
     <div

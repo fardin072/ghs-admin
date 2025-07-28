@@ -1,5 +1,5 @@
 import { StudentMarksheet } from "@/pages/Marksheet";
-import { getSubjectMarkingScheme, Mark } from "@/lib/database";
+import { getSubjectMarkingScheme, Mark, getSubjectsByClassAndGroup } from "@/lib/database";
 
 interface FinalMarksheetTemplateProps {
   marksheet: StudentMarksheet;
@@ -40,13 +40,8 @@ export function FinalMarksheetTemplate({
     halfYearlyMarks.some((mark) => mark.grade === "F") ||
     yearlyMarks.some((mark) => mark.grade === "F");
 
-  // Get all subjects
-  const allSubjects = Array.from(
-    new Set([
-      ...halfYearlyMarks.map((mark) => mark.subject),
-      ...yearlyMarks.map((mark) => mark.subject),
-    ]),
-  );
+  // Get all subjects dynamically based on student class and group (for 9-10)
+  const allSubjects = getSubjectsByClassAndGroup(marksheet.student.class, marksheet.student.group);
 
   const totalPossible = allSubjects.reduce((sum, subject) => {
     const scheme = getSubjectMarkingScheme(subject);
@@ -368,18 +363,18 @@ export function FinalMarksheetTemplate({
                 {hasFailedSubject
                   ? "F"
                   : finalGPA >= 5.0
-                    ? "A+"
-                    : finalGPA >= 4.0
-                      ? "A"
-                      : finalGPA >= 3.5
-                        ? "A-"
-                        : finalGPA >= 3.0
-                          ? "B"
-                          : finalGPA >= 2.0
-                            ? "C"
-                            : finalGPA >= 1.0
-                              ? "D"
-                              : "F"}
+                  ? "A+"
+                  : finalGPA >= 4.0
+                  ? "A"
+                  : finalGPA >= 3.5
+                  ? "A-"
+                  : finalGPA >= 3.0
+                  ? "B"
+                  : finalGPA >= 2.0
+                  ? "C"
+                  : finalGPA >= 1.0
+                  ? "D"
+                  : "F"}
               </span>
             </div>
             <div className="flex justify-between items-center">

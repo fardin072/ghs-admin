@@ -93,37 +93,77 @@ export function Students() {
       setLoading(false);
     }
   };
+  const deleteDuplicateStudents = async () => {
+    try {
+      const allStudents = await db.students.toArray();
+      const uniqueRolls = new Set<string>();
+      const duplicates: number[] = [];
+
+      allStudents.forEach((student) => {
+        const key = `${student.class}-${student.group || student.section}-${student.roll}`;
+        if (uniqueRolls.has(key)) {
+          duplicates.push(student.id!);
+        } else {
+          uniqueRolls.add(key);
+        }
+      });
+
+      // Delete duplicates
+      for (const id of duplicates) {
+        await db.students.delete(id);
+        await db.marks.where("studentId").equals(id).delete(); // optional: remove associated marks
+      }
+
+      toast.success(`${duplicates.length} duplicate roll(s) removed`);
+      loadStudents();
+    } catch (error) {
+      console.error("Error deleting duplicates:", error);
+      toast.error("Failed to remove duplicate rolls");
+    }
+  };
+  const deleteAllData = async () => {
+    const confirmed = window.confirm("Are you sure you want to delete ALL student data? This cannot be undone.");
+    if (!confirmed) return;
+
+    try {
+      await db.students.clear();
+      await db.marks.clear();
+
+      toast.success("All student and marks data deleted");
+      loadStudents(); // reload to reflect empty state
+    } catch (error) {
+      console.error("Failed to delete all data:", error);
+      toast.error("Failed to delete all data");
+    }
+  };
+
+
 
   const applyFilters = () => {
     let filtered = students;
 
-    // Name filter
     if (filters.name) {
       filtered = filtered.filter((student) =>
         student.name.toLowerCase().includes(filters.name.toLowerCase()),
       );
     }
 
-    // Class filter
-    if (filters.class && filters.class !== "all") {
+    if (filters.class !== "all") {
       filtered = filtered.filter(
         (student) => student.class.toString() === filters.class,
       );
     }
 
-    // Section filter (for classes 6-8)
-    if (filters.section && filters.section !== "all") {
+    if (filters.section !== "all") {
       filtered = filtered.filter(
         (student) => student.section === filters.section,
       );
     }
 
-    // Group filter (for classes 9-10)
-    if (filters.group && filters.group !== "all") {
+    if (filters.group !== "all") {
       filtered = filtered.filter((student) => student.group === filters.group);
     }
 
-    // Roll filter
     if (filters.roll) {
       filtered = filtered.filter((student) =>
         student.roll.toString().includes(filters.roll),
@@ -146,7 +186,6 @@ export function Students() {
   const handleDelete = async (studentId: number, studentName: string) => {
     try {
       await db.students.delete(studentId);
-      // Also delete associated marks
       await db.marks.where("studentId").equals(studentId).delete();
       toast.success(`${studentName} deleted successfully`);
       loadStudents();
@@ -156,12 +195,12 @@ export function Students() {
     }
   };
 
+
+
   const exportToExcel = async () => {
     try {
-      // Create workbook
       const wb = XLSX.utils.book_new();
 
-      // Student data sheet
       const studentData = filteredStudents.map((student) => ({
         Name: student.name,
         Roll: student.roll,
@@ -173,7 +212,6 @@ export function Students() {
       const studentSheet = XLSX.utils.json_to_sheet(studentData);
       XLSX.utils.book_append_sheet(wb, studentSheet, "Students");
 
-      // Student results sheet (with marks)
       const allMarks = await db.marks.toArray();
       const resultsData = [];
 
@@ -183,7 +221,6 @@ export function Students() {
         );
 
         if (studentMarks.length > 0) {
-          // Group marks by exam
           const examGroups = studentMarks.reduce(
             (acc, mark) => {
               if (!acc[mark.exam]) acc[mark.exam] = [];
@@ -231,10 +268,7 @@ export function Students() {
       const resultsSheet = XLSX.utils.json_to_sheet(resultsData);
       XLSX.utils.book_append_sheet(wb, resultsSheet, "Results");
 
-      // Generate filename
       const filename = `GUZIA_HIGH_SCHOOL_Data_${new Date().toISOString().split("T")[0]}.xlsx`;
-
-      // Save file
       XLSX.writeFile(wb, filename);
 
       toast.success("Student data and results exported successfully!");
@@ -254,7 +288,6 @@ export function Students() {
       let studentsToImport: Partial<Student>[] = [];
 
       if (file.name.endsWith(".xlsx") || file.name.endsWith(".xls")) {
-        // Handle Excel files
         const buffer = await file.arrayBuffer();
         const workbook = XLSX.read(buffer, { type: "buffer" });
         const sheetName = workbook.SheetNames[0];
@@ -269,7 +302,6 @@ export function Students() {
           group: row.Group?.toString().trim() || undefined,
         }));
       } else {
-        // Handle CSV files
         const text = await file.text();
         const lines = text.split("\n");
         const headers = lines[0].split(",");
@@ -308,7 +340,6 @@ export function Students() {
         }
       }
 
-      // Validate imported data
       const validStudents = studentsToImport.filter(
         (student) =>
           student.name &&
@@ -324,7 +355,6 @@ export function Students() {
         return;
       }
 
-      // Import students
       let importedCount = 0;
       for (const student of validStudents) {
         try {
@@ -337,8 +367,6 @@ export function Students() {
 
       toast.success(`${importedCount} students imported successfully!`);
       loadStudents();
-
-      // Reset file input
       event.target.value = "";
     } catch (error) {
       console.error("Error importing data:", error);
@@ -373,7 +401,29 @@ export function Students() {
             Manage all students in GUZIA HIGH SCHOOL
           </p>
         </div>
+
+        {/* ✅ Action Buttons */}
         <div className="flex flex-col mobile:flex-row gap-2">
+          <Button
+            variant="destructive"
+            onClick={deleteAllData}
+            className="w-full mobile:w-auto text-xs mobile:text-sm"
+          >
+            <Trash2 className="mr-1 mobile:mr-2 h-3 w-3 mobile:h-4 mobile:w-4" />
+            <span className="hidden mobile:inline">Delete All</span>
+            <span className="mobile:hidden">Wipe</span>
+          </Button>
+
+          <Button
+            variant="outline"
+            onClick={deleteDuplicateStudents}
+            className="w-full mobile:w-auto text-xs mobile:text-sm"
+          >
+            <Trash2 className="mr-1 mobile:mr-2 h-3 w-3 mobile:h-4 mobile:w-4" />
+            <span className="hidden mobile:inline">Delete Duplicate Rolls</span>
+            <span className="mobile:hidden">Dedup</span>
+          </Button>
+
           <Button
             variant="outline"
             onClick={exportToExcel}
@@ -383,6 +433,9 @@ export function Students() {
             <span className="hidden mobile:inline">Export Data</span>
             <span className="mobile:hidden">Export</span>
           </Button>
+
+
+
           <div className="relative w-full mobile:w-auto">
             <input
               type="file"
@@ -399,6 +452,7 @@ export function Students() {
               <span className="mobile:hidden">Import</span>
             </Button>
           </div>
+
           <Link to="/add-student" className="w-full mobile:w-auto">
             <Button className="w-full mobile:w-auto text-xs mobile:text-sm">
               <Plus className="mr-1 mobile:mr-2 h-3 w-3 mobile:h-4 mobile:w-4" />
@@ -408,7 +462,6 @@ export function Students() {
           </Link>
         </div>
       </div>
-
       {/* Filters */}
       <Card>
         <CardHeader className="pb-4 mobile:pb-6">
