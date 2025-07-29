@@ -44,9 +44,11 @@ export const db = new SchoolDatabase();
 // Helper functions for grading
 export const calculateGrade = (
   marks: number,
-  totalMarks: number = 100,
+  totalMarks: number = 100
 ): { grade: string; gradePoint: number } => {
+  // Adjust total marks for specific subjects (already handled in getSubjectMarkingScheme)
   const percentage = (marks / totalMarks) * 100;
+
   if (percentage >= 80) return { grade: "A+", gradePoint: 5.0 };
   if (percentage >= 70) return { grade: "A", gradePoint: 4.0 };
   if (percentage >= 60) return { grade: "A-", gradePoint: 3.5 };
@@ -55,6 +57,8 @@ export const calculateGrade = (
   if (percentage >= 33) return { grade: "D", gradePoint: 1.0 };
   return { grade: "F", gradePoint: 0.0 };
 };
+
+
 
 // Subject definitions by class and group
 export const getSubjectsByClassAndGroup = (
@@ -180,7 +184,7 @@ export const getSubjectMarkingScheme = (
         written: 35,
         mcq: 15,
         practical: 0,
-        total: 50,
+        total: 50, // Total is 50 for this subject
       };
     }
     if (subject === "English 2nd Paper") {
@@ -188,7 +192,7 @@ export const getSubjectMarkingScheme = (
         written: 50,
         mcq: 0,
         practical: 0,
-        total: 50,
+        total: 50, // Total is 50 for this subject
       };
     }
   }
@@ -199,49 +203,11 @@ export const getSubjectMarkingScheme = (
       written: 10,
       mcq: 15,
       practical: 25,
-      total: 50,
+      total: 50, // Total is 50 for ICT
     };
   }
 
-  // English 1st paper: Written only (max 100)
-  if (subject === "English 1st Paper") {
-    return {
-      written: 100,
-      mcq: 0,
-      practical: 0,
-      total: 100,
-    };
-  }
-
-  // For class 9-10: English 2nd paper = 100 marks
-  if (subject === "English 2nd Paper") {
-    return {
-      written: 100,
-      mcq: 0,
-      practical: 0,
-      total: 100,
-    };
-  }
-
-  // Science subjects: Written (50) + MCQ (25) + Practical (25) = 100
-  const scienceSubjects = [
-    "Higher Math / Agriculture",
-    "Higher Math",
-    "Physics",
-    "Chemistry",
-    "Biology",
-  ];
-
-  if (scienceSubjects.includes(subject)) {
-    return {
-      written: 50,
-      mcq: 25,
-      practical: 25,
-      total: 100,
-    };
-  }
-
-  // All other subjects: Written (70) + MCQ (30) = 100
+  // Other subjects default to 100 marks
   return {
     written: 70,
     mcq: 30,
@@ -249,3 +215,4 @@ export const getSubjectMarkingScheme = (
     total: 100,
   };
 };
+

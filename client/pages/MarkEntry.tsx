@@ -211,98 +211,104 @@ export function MarkEntry() {
     : null;
 
   const handleSaveMarks = async () => {
-    setSaving(true);
-    try {
-      // Validate marks against marking scheme
-      const scheme = getSubjectMarkingScheme(selectedSubject, parseInt(selectedClass));
-      const validationErrors: string[] = [];
+  setSaving(true);
+  try {
+    // Get the marking scheme for the selected subject
+    const scheme = getSubjectMarkingScheme(selectedSubject, parseInt(selectedClass));
+    const validationErrors: string[] = [];
 
-      studentMarks.forEach((studentMark) => {
-        if (scheme.written > 0 && studentMark.theory > scheme.written) {
-          validationErrors.push(
-            `${studentMark.studentName}: Written marks (${studentMark.theory}) exceed maximum (${scheme.written})`,
-          );
-        }
-        if (scheme.mcq > 0 && studentMark.mcq > scheme.mcq) {
-          validationErrors.push(
-            `${studentMark.studentName}: MCQ marks (${studentMark.mcq}) exceed maximum (${scheme.mcq})`,
-          );
-        }
-        if (scheme.practical > 0 && studentMark.practical > scheme.practical) {
-          validationErrors.push(
-            `${studentMark.studentName}: Practical marks (${studentMark.practical}) exceed maximum (${scheme.practical})`,
-          );
-        }
-      });
-
-      if (validationErrors.length > 0) {
-        toast.error(`Validation errors:\n${validationErrors.join("\n")}`);
-        return;
-      }
-
-      const marksToSave: Partial<Mark>[] = studentMarks.map((studentMark) => {
-        const total = calculateTotal(
-          studentMark.theory,
-          studentMark.mcq,
-          studentMark.practical,
+    // Validate marks against marking scheme
+    studentMarks.forEach((studentMark) => {
+      if (scheme.written > 0 && studentMark.theory > scheme.written) {
+        validationErrors.push(
+          `${studentMark.studentName}: Written marks (${studentMark.theory}) exceed maximum (${scheme.written})`,
         );
-        const percentage = (total / scheme.total) * 100;
-        const { grade, gradePoint } = calculateGrade(percentage);
-
-        const isHighClass =
-          parseInt(selectedClass) >= 9 && parseInt(selectedClass) <= 10;
-
-        return {
-          studentId: studentMark.studentId,
-          subject: selectedSubject,
-          exam: selectedExam,
-          class: parseInt(selectedClass),
-          section: isHighClass ? selectedGroup : selectedSection,
-          group: isHighClass ? selectedGroup : undefined,
-          theory: studentMark.theory,
-          mcq: studentMark.mcq,
-          practical: studentMark.practical,
-          total,
-          grade,
-          gradePoint,
-        };
-      });
-
-      // Check if marks already exist and update or create
-      for (const mark of marksToSave) {
-        const existingMark = await db.marks
-          .where({
-            studentId: mark.studentId,
-            subject: mark.subject,
-            exam: mark.exam,
-          })
-          .first();
-
-        if (existingMark) {
-          await db.marks.update(existingMark.id!, mark);
-        } else {
-          await db.marks.add(mark as Mark);
-        }
       }
+      if (scheme.mcq > 0 && studentMark.mcq > scheme.mcq) {
+        validationErrors.push(
+          `${studentMark.studentName}: MCQ marks (${studentMark.mcq}) exceed maximum (${scheme.mcq})`,
+        );
+      }
+      if (scheme.practical > 0 && studentMark.practical > scheme.practical) {
+        validationErrors.push(
+          `${studentMark.studentName}: Practical marks (${studentMark.practical}) exceed maximum (${scheme.practical})`,
+        );
+      }
+    });
 
-      toast.success("Marks saved successfully!");
-
-      // Reset form
-      setStep(1);
-      setSelectedExam("");
-      setSelectedClass("");
-      setSelectedSection("");
-      setSelectedGroup("");
-      setSelectedSubject("");
-      setStudents([]);
-      setStudentMarks([]);
-    } catch (error) {
-      console.error("Error saving marks:", error);
-      toast.error("Failed to save marks");
-    } finally {
-      setSaving(false);
+    if (validationErrors.length > 0) {
+      toast.error(`Validation errors:\n${validationErrors.join("\n")}`);
+      return;
     }
-  };
+
+    // Prepare marks to be saved
+    const marksToSave: Partial<Mark>[] = studentMarks.map((studentMark) => {
+      // Calculate total marks based on theory, mcq, and practical marks
+      const total = calculateTotal(
+        studentMark.theory,
+        studentMark.mcq,
+        studentMark.practical,
+      );
+
+      // Calculate the grade and gradePoint based on the total and marking scheme
+      const percentage = (total / scheme.total) * 100;
+      const { grade, gradePoint } = calculateGrade(percentage, scheme.total);
+
+      const isHighClass =
+        parseInt(selectedClass) >= 9 && parseInt(selectedClass) <= 10;
+
+      return {
+        studentId: studentMark.studentId,
+        subject: selectedSubject,
+        exam: selectedExam,
+        class: parseInt(selectedClass),
+        section: isHighClass ? selectedGroup : selectedSection,
+        group: isHighClass ? selectedGroup : undefined,
+        theory: studentMark.theory,
+        mcq: studentMark.mcq,
+        practical: studentMark.practical,
+        total,
+        grade,
+        gradePoint,
+      };
+    });
+
+    // Check if marks already exist and update or create
+    for (const mark of marksToSave) {
+      const existingMark = await db.marks
+        .where({
+          studentId: mark.studentId,
+          subject: mark.subject,
+          exam: mark.exam,
+        })
+        .first();
+
+      if (existingMark) {
+        await db.marks.update(existingMark.id!, mark);
+      } else {
+        await db.marks.add(mark as Mark);
+      }
+    }
+
+    toast.success("Marks saved successfully!");
+
+    // Reset form
+    setStep(1);
+    setSelectedExam("");
+    setSelectedClass("");
+    setSelectedSection("");
+    setSelectedGroup("");
+    setSelectedSubject("");
+    setStudents([]);
+    setStudentMarks([]);
+  } catch (error) {
+    console.error("Error saving marks:", error);
+    toast.error("Failed to save marks");
+  } finally {
+    setSaving(false);
+  }
+};
+
 
   const resetForm = () => {
     setStep(1);

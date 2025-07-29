@@ -1,5 +1,33 @@
 import { StudentMarksheet } from "@/pages/Marksheet";
 import { getSubjectMarkingScheme } from "@/lib/database";
+import { useEffect, useState } from "react";
+
+// Utility to calculate the grade and grade point
+const calculateGrade = (
+  marks: number,
+  totalMarks: number = 100,
+  subject: string = "",
+  classNum: number = 0
+): { grade: string; gradePoint: number } => {
+  // Adjust total marks to 50 for certain subjects
+  if (
+    (classNum >= 6 && classNum <= 8 && subject === "Bangla 2nd Paper") ||
+    (classNum >= 6 && classNum <= 8 && subject === "English 2nd Paper") ||
+    (subject === "Digital Technology (ICT)" || "Arts & Culture / Work & Arts")
+  ) {
+    totalMarks = 50;
+  }
+
+  const percentage = (marks / totalMarks) * 100;
+
+  if (percentage >= 80) return { grade: "A+", gradePoint: 5.0 };
+  if (percentage >= 70) return { grade: "A", gradePoint: 4.0 };
+  if (percentage >= 60) return { grade: "A-", gradePoint: 3.5 };
+  if (percentage >= 50) return { grade: "B", gradePoint: 3.0 };
+  if (percentage >= 40) return { grade: "C", gradePoint: 2.0 };
+  if (percentage >= 33) return { grade: "D", gradePoint: 1.0 };
+  return { grade: "F", gradePoint: 0.0 };
+};
 
 interface MarksheetTemplateProps {
   marksheet: StudentMarksheet;
@@ -12,18 +40,30 @@ export function MarksheetTemplate({
 }: MarksheetTemplateProps) {
   const currentYear = new Date().getFullYear();
 
+  // State to hold the updated marks with grades and grade points
+  const [updatedMarks, setUpdatedMarks] = useState(marksheet.marks);
+
+  useEffect(() => {
+    const newMarks = marksheet.marks.map((mark) => {
+      const scheme = getSubjectMarkingScheme(mark.subject, marksheet.student.class);
+      const { grade, gradePoint } = calculateGrade(mark.total, scheme.total, mark.subject, marksheet.student.class);
+      return { ...mark, grade, gradePoint };
+    });
+    setUpdatedMarks(newMarks);
+  }, [marksheet]);
+
   // Calculate total marks obtained and total possible marks
-  const totalObtained = marksheet.marks.reduce(
+  const totalObtained = updatedMarks.reduce(
     (sum, mark) => sum + mark.total,
-    0,
+    0
   );
-  const totalPossible = marksheet.marks.reduce((sum, mark) => {
+  const totalPossible = updatedMarks.reduce((sum, mark) => {
     const scheme = getSubjectMarkingScheme(mark.subject, marksheet.student.class);
     return sum + scheme.total;
   }, 0);
 
   // Check if any subject is failed
-  const hasFailedSubject = marksheet.marks.some((mark) => mark.grade === "F");
+  const hasFailedSubject = updatedMarks.some((mark) => mark.grade === "F");
 
   return (
     <div
@@ -86,45 +126,6 @@ export function MarksheetTemplate({
         </div>
       </div>
 
-      {/* Student Information */}
-      <div className="grid grid-cols-4 gap-3 mb-4">
-        <div className="border border-gray-300 p-2 rounded">
-          <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
-            Student Name
-          </div>
-          <div className="text-sm font-bold text-gray-800 border-b border-dotted border-gray-400 pb-1">
-            {marksheet.student.name}
-          </div>
-        </div>
-
-        <div className="border border-gray-300 p-2 rounded">
-          <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
-            Class
-          </div>
-          <div className="text-sm font-bold text-gray-800 border-b border-dotted border-gray-400 pb-1">
-            Class {marksheet.student.class}
-          </div>
-        </div>
-
-        <div className="border border-gray-300 p-2 rounded">
-          <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
-            Roll Number
-          </div>
-          <div className="text-sm font-bold text-gray-800 border-b border-dotted border-gray-400 pb-1">
-            {marksheet.student.roll}
-          </div>
-        </div>
-
-        <div className="border border-gray-300 p-2 rounded">
-          <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
-            Section
-          </div>
-          <div className="text-sm font-bold text-gray-800 border-b border-dotted border-gray-400 pb-1">
-            {marksheet.student.section}
-          </div>
-        </div>
-      </div>
-
       {/* Marks Table */}
       <div className="mb-4">
         <div className="bg-gray-800 text-white p-2 rounded-t-lg">
@@ -160,7 +161,7 @@ export function MarksheetTemplate({
             </tr>
           </thead>
           <tbody>
-            {marksheet.marks.length === 0 ? (
+            {updatedMarks.length === 0 ? (
               <tr>
                 <td
                   colSpan={7}
@@ -170,7 +171,7 @@ export function MarksheetTemplate({
                 </td>
               </tr>
             ) : (
-              marksheet.marks.map((mark, index) => {
+              updatedMarks.map((mark, index) => {
                 const scheme = getSubjectMarkingScheme(mark.subject, marksheet.student.class);
                 return (
                   <tr
@@ -207,6 +208,7 @@ export function MarksheetTemplate({
       </div>
 
       {/* Summary Section */}
+      {/* The summary logic remains the same, using `updatedMarks` instead of the original marks */}
       <div className="grid grid-cols-2 gap-4 mb-3">
         <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-3 rounded-lg border border-blue-200">
           <h4 className="text-sm font-bold text-blue-800 mb-2 text-center">
@@ -241,7 +243,7 @@ export function MarksheetTemplate({
             </div>
           </div>
         </div>
-
+        {/* Final Result Section */}
         <div className="bg-gradient-to-r from-green-50 to-green-100 p-3 rounded-lg border border-green-200">
           <h4 className="text-sm font-bold text-green-800 mb-2 text-center">
             FINAL RESULT
