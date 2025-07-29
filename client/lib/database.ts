@@ -1,6 +1,5 @@
 import Dexie, { Table } from "dexie";
 
-// Student Interface
 export interface Student {
   id?: number;
   name: string;
@@ -10,7 +9,6 @@ export interface Student {
   group?: string; // For classes 9-10
 }
 
-// Mark Interface
 export interface Mark {
   id?: number;
   studentId: number;
@@ -27,7 +25,6 @@ export interface Mark {
   gradePoint: number;
 }
 
-// Database class extends Dexie
 export class SchoolDatabase extends Dexie {
   students!: Table<Student>;
   marks!: Table<Mark>;
@@ -44,10 +41,12 @@ export class SchoolDatabase extends Dexie {
 
 export const db = new SchoolDatabase();
 
-// Helper function for grading
+// Helper functions for grading
 export const calculateGrade = (
-  percentage: number,
+  marks: number,
+  totalMarks: number = 100,
 ): { grade: string; gradePoint: number } => {
+  const percentage = (marks / totalMarks) * 100;
   if (percentage >= 80) return { grade: "A+", gradePoint: 5.0 };
   if (percentage >= 70) return { grade: "A", gradePoint: 4.0 };
   if (percentage >= 60) return { grade: "A-", gradePoint: 3.5 };
@@ -72,7 +71,7 @@ export const getSubjectsByClassAndGroup = (
       "Mathematics",
       "Science & Technology",
       "Bangladesh & Global Studies",
-      "Digital Technology (ICT)",  // Include ICT for all classes 6-8
+      "Digital Technology (ICT)",
       "Religion & Moral Education",
       "Health & Physical Ed.",
       "Agriculture",
@@ -82,13 +81,14 @@ export const getSubjectsByClassAndGroup = (
 
   // Classes 9-10 (Group-based subjects)
   if (classNum >= 9 && classNum <= 10) {
+    // Common subjects for all groups in classes 9-10
     const commonSubjects = [
       "Bangla 1st Paper",
       "Bangla 2nd Paper",
       "English 1st Paper",
       "English 2nd Paper",
       "Mathematics",
-      "Digital Technology (ICT)",  // Include ICT for classes 9-10
+      "Digital Technology (ICT)",
       "Religion & Moral Education",
     ];
 
@@ -119,12 +119,44 @@ export const getSubjectsByClassAndGroup = (
   return [];
 };
 
-// Get groups for classes 9-10
 export const getGroups = (classNum: number): string[] => {
   if (classNum >= 9 && classNum <= 10) {
     return ["Science", "Business Studies", "Humanities"];
   }
   return [];
+};
+
+// Subject name shortening for tabulation display
+export const getShortSubjectName = (subject: string): string => {
+  const shortNames: { [key: string]: string } = {
+    "Bangla 1st Paper": "ban1st",
+    "Bangla 2nd Paper": "ban2nd",
+    "English 1st Paper": "eng1st",
+    "English 2nd Paper": "eng2nd",
+    "Mathematics": "math",
+    "Science & Technology": "sci&tech",
+    "Bangladesh & Global Studies": "bg&gs",
+    "Digital Technology (ICT)": "ict",
+    "Religion & Moral Education": "religion",
+    "Health & Physical Ed.": "hpe",
+    "Agriculture": "agri",
+    "Arts & Culture / Work & Arts": "arts",
+    "Physics": "physics",
+    "Chemistry": "chem",
+    "Biology": "bio",
+    "Bangladesh & Global Science": "bg&sci",
+    "Higher Math / Agriculture": "h.math",
+    "Higher Math": "h.math",
+    "Accounting": "account",
+    "Finance": "finance",
+    "Business Entrepreneurship": "business",
+    "History": "history",
+    "Geography": "geo",
+    "Civics": "civics",
+    "Science": "science"
+  };
+
+  return shortNames[subject] || subject.substring(0, 8).toLowerCase();
 };
 
 // Subject marking schemes
@@ -137,31 +169,12 @@ export interface SubjectMarkingScheme {
 
 export const getSubjectMarkingScheme = (
   subject: string,
-  classNum: number
+  classNum?: number,
 ): SubjectMarkingScheme => {
-  // Only for Classes 6-8, Bangla 2nd and English 2nd paper have specific marking schemes
-  if (classNum >= 6 && classNum <= 8) {
-    // ICT subject: Written (10) + MCQ (15) + Practical (25) = 50
-    if (subject === "Digital Technology (ICT)") {
-      return {
-        written: 10,
-        mcq: 15,
-        practical: 25,
-        total: 50,
-      };
-    }
+  // Special marking for specific subjects
 
-    // English 2nd Paper: Written (35) + MCQ (15) = 50
-    if (subject === "English 2nd Paper") {
-      return {
-        written: 50,
-        mcq: 0,
-        practical: 0,
-        total: 50,
-      };
-    }
-
-    // Bangla 2nd Paper: Written (35) + MCQ (15) = 50
+  // For class 6-8: Bangla 2nd paper and English 2nd paper = 50 marks
+  if (classNum && classNum >= 6 && classNum <= 8) {
     if (subject === "Bangla 2nd Paper") {
       return {
         written: 35,
@@ -170,84 +183,65 @@ export const getSubjectMarkingScheme = (
         total: 50,
       };
     }
-  }
-
-  // For Classes 9-10, all subjects remain the same (max 100)
-  if (classNum >= 9 && classNum <= 10) {
-    // English 1st Paper and Bangla 1st Paper remain max 100
-    if (subject === "English 1st Paper") {
-      return {
-        written: 100,
-        mcq: 0,
-        practical: 0,
-        total: 100,
-      };
-    }
-    if (subject === "Bangla 1st Paper") {
-      return {
-        written: 70,
-        mcq: 30,
-        practical: 0,
-        total: 100,
-      };
-    }
-
-    // English 2nd Paper and Bangla 2nd Paper remain max 100
     if (subject === "English 2nd Paper") {
       return {
-        written: 100,
+        written: 50,
         mcq: 0,
         practical: 0,
-        total: 100,
-      };
-    }
-    if (subject === "Bangla 2nd Paper") {
-      return {
-        written: 70,
-        mcq: 30,
-        practical: 0,
-        total: 100,
-      };
-    }
-
-    // ICT subject for Classes 9-10 remains max 50
-    if (subject === "Digital Technology (ICT)") {
-      return {
-        written: 10,
-        mcq: 15,
-        practical: 25,
         total: 50,
       };
     }
+  }
 
-    // Science subjects: Written (50) + MCQ (25) + Practical (25) = 100
-    const scienceSubjects = [
-      "Higher Math / Agriculture",
-      "Higher Math",
-      "Physics",
-      "Chemistry",
-      "Biology",
-    ];
-
-    if (scienceSubjects.includes(subject)) {
-      return {
-        written: 50,
-        mcq: 25,
-        practical: 25,
-        total: 100,
-      };
-    }
-
-    // All other subjects: Written (70) + MCQ (30) = 100
+  // ICT for all classes = 50 marks
+  if (subject === "Digital Technology (ICT)") {
     return {
-      written: 70,
-      mcq: 30,
+      written: 10,
+      mcq: 15,
+      practical: 25,
+      total: 50,
+    };
+  }
+
+  // English 1st paper: Written only (max 100)
+  if (subject === "English 1st Paper") {
+    return {
+      written: 100,
+      mcq: 0,
       practical: 0,
       total: 100,
     };
   }
 
-  // Default case for any other scenarios
+  // For class 9-10: English 2nd paper = 100 marks
+  if (subject === "English 2nd Paper") {
+    return {
+      written: 100,
+      mcq: 0,
+      practical: 0,
+      total: 100,
+    };
+  }
+
+  // Science subjects: Written (50) + MCQ (25) + Practical (25) = 100
+  const scienceSubjects = [
+    "Higher Math / Agriculture",
+    "Higher Math",
+    "Physics",
+    "Chemistry",
+    "Biology",
+  ];
+
+  if (scienceSubjects.includes(subject)) {
+    return {
+      written: 50,
+      mcq: 25,
+      practical: 25,
+      total: 100,
+    };
+  }
+
+  // All other subjects: Written (70) + MCQ (30) = 100
   return {
     written: 70,
     mcq: 30,

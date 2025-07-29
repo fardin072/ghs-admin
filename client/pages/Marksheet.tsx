@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Download, FileText, Users, GraduationCap, Upload } from "lucide-react";
+import { Download, FileText, Users, GraduationCap, Upload, Table as TableIcon } from "lucide-react";
 import jsPDF from "jspdf";
 import * as XLSX from "xlsx";
 import html2canvas from "html2canvas";
@@ -38,6 +38,7 @@ import {
 } from "@/lib/database";
 import { MarksheetTemplate } from "@/components/MarksheetTemplate";
 import { FinalMarksheetTemplate } from "@/components/FinalMarksheetTemplate";
+import { TabulationSheet } from "@/components/TabulationSheet";
 
 export interface StudentMarksheet {
   student: Student;
@@ -50,7 +51,7 @@ export interface StudentMarksheet {
 }
 
 export function Marksheet() {
-  const [mode, setMode] = useState<"individual" | "section" | "final" | "">("");
+  const [mode, setMode] = useState<"individual" | "section" | "final" | "tabulation" | "">("");
   const [selectedClass, setSelectedClass] = useState("");
   const [selectedSection, setSelectedSection] = useState("");
   const [selectedGroup, setSelectedGroup] = useState("");
@@ -70,6 +71,14 @@ export function Marksheet() {
       yearlyMarks: Mark[];
     }[]
   >([]);
+  const [tabulationData, setTabulationData] = useState<{
+    students: Student[];
+    subjects: string[];
+    marksMatrix: { [studentId: number]: { [subject: string]: Mark | null } };
+    totals: { [studentId: number]: number };
+    grades: { [studentId: number]: string };
+    positions: { [studentId: number]: number };
+  } | null>(null);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
 
@@ -654,7 +663,10 @@ export function Marksheet() {
 
     setGenerating(true);
     try {
-      const pdf = new jsPDF("p", "mm", "a4");
+      // Use landscape orientation for tabulation sheets
+      const pdf = mode === "tabulation"
+        ? new jsPDF("l", "mm", "a4")  // landscape
+        : new jsPDF("p", "mm", "a4"); // portrait
 
       if (mode === "individual") {
         // For individual marksheet, maintain natural aspect ratio
@@ -687,6 +699,49 @@ export function Marksheet() {
         const yOffset = (pageHeight - imgHeight) / 2;
 
         pdf.addImage(imgData, "PNG", xOffset, yOffset, imgWidth, imgHeight);
+      } else if (mode === "tabulation") {
+        // For tabulation sheet in landscape mode - handle multiple pages
+        const tabulationPages = marksheetRef.current.querySelectorAll(
+          ".tabulation-page",
+        );
+
+        for (let i = 0; i < tabulationPages.length; i++) {
+          const element = tabulationPages[i] as HTMLElement;
+
+          const canvas = await html2canvas(element, {
+            scale: 2,
+            useCORS: true,
+            logging: false,
+          });
+
+          const imgData = canvas.toDataURL("image/png");
+          const pageWidth = 297; // A4 landscape width
+          const pageHeight = 210; // A4 landscape height
+
+          // Calculate natural image dimensions while maintaining aspect ratio
+          const imgAspectRatio = canvas.width / canvas.height;
+          const maxWidth = pageWidth - 20; // Leave 10mm margin on each side
+          const maxHeight = pageHeight - 20; // Leave 10mm margin top and bottom
+
+          let imgWidth = maxWidth;
+          let imgHeight = maxWidth / imgAspectRatio;
+
+          // If height exceeds max height, scale down
+          if (imgHeight > maxHeight) {
+            imgHeight = maxHeight;
+            imgWidth = maxHeight * imgAspectRatio;
+          }
+
+          // Center the image on the page
+          const xOffset = (pageWidth - imgWidth) / 2;
+          const yOffset = (pageHeight - imgHeight) / 2;
+
+          if (i > 0) {
+            pdf.addPage("a4", "landscape");
+          }
+
+          pdf.addImage(imgData, "PNG", xOffset, yOffset, imgWidth, imgHeight);
+        }
       } else {
         // For section-wise marksheets, process each marksheet individually
         const marksheetElements = marksheetRef.current.querySelectorAll(
@@ -737,7 +792,9 @@ export function Marksheet() {
           ? `marksheet_${studentMarksheet?.student.name}_${selectedExam}.pdf`
           : mode === "final"
             ? `final_marksheet_class${selectedClass}_${parseInt(selectedClass) >= 9 && parseInt(selectedClass) <= 10 ? "group" + selectedGroup.replace(/\s+/g, "") : "section" + selectedSection}.pdf`
-            : `marksheet_class${selectedClass}_${parseInt(selectedClass) >= 9 && parseInt(selectedClass) <= 10 ? "group" + selectedGroup.replace(/\s+/g, "") : "section" + selectedSection}_${selectedExam}.pdf`;
+            : mode === "tabulation"
+              ? `tabulation_sheet_class${selectedClass}_${parseInt(selectedClass) >= 9 && parseInt(selectedClass) <= 10 ? "group" + selectedGroup.replace(/\s+/g, "") : "section" + selectedSection}_${selectedExam}.pdf`
+              : `marksheet_class${selectedClass}_${parseInt(selectedClass) >= 9 && parseInt(selectedClass) <= 10 ? "group" + selectedGroup.replace(/\s+/g, "") : "section" + selectedSection}_${selectedExam}.pdf`;
 
       pdf.save(fileName);
       toast.success("PDF generated successfully!");
@@ -746,6 +803,144 @@ export function Marksheet() {
       toast.error("Failed to generate PDF");
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const loadTabulationData = async () => {
+    const classNum = parseInt(selectedClass);
+    const isHighClass = classNum >= 9 && classNum <= 10;
+
+    if (
+      !selectedClass ||
+      !selectedExam ||
+      (!isHighClass && !selectedSection) ||
+      (isHighClass && !selectedGroup)
+    ) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Get students in the section/group
+      const students = await db.students
+        .filter((student) => {
+          if (isHighClass) {
+            return (
+              student.class === classNum && student.group === selectedGroup
+            );
+          } else {
+            return (
+              student.class === classNum && student.section === selectedSection
+            );
+          }
+        })
+        .toArray();
+      students.sort((a, b) => a.roll - b.roll);
+
+      // Get all subjects for this class/group
+      const subjects = getSubjectsByClassAndGroup(
+        classNum,
+        isHighClass ? selectedGroup : undefined,
+      );
+
+      // Create marks matrix
+      const marksMatrix: { [studentId: number]: { [subject: string]: Mark | null } } = {};
+      const totals: { [studentId: number]: number } = {};
+      const grades: { [studentId: number]: string } = {};
+
+      for (const student of students) {
+        marksMatrix[student.id!] = {};
+        let studentTotal = 0;
+        let totalSubjects = 0;
+        let totalGradePoints = 0;
+
+        for (const subject of subjects) {
+          // Get mark for this student and subject
+          const mark = await db.marks
+            .where({
+              studentId: student.id,
+              subject: subject,
+              exam: selectedExam,
+            })
+            .first();
+
+          if (mark) {
+            marksMatrix[student.id!][subject] = mark;
+            studentTotal += mark.total;
+            totalGradePoints += mark.gradePoint;
+            totalSubjects++;
+          } else {
+            // Create default mark if not exists
+            marksMatrix[student.id!][subject] = {
+              studentId: student.id!,
+              subject,
+              exam: selectedExam,
+              class: classNum,
+              section: selectedSection,
+              group: isHighClass ? selectedGroup : undefined,
+              theory: 0,
+              mcq: 0,
+              practical: 0,
+              total: 0,
+              grade: "F",
+              gradePoint: 0.0,
+            } as Mark;
+          }
+        }
+
+        totals[student.id!] = studentTotal;
+
+        // Check if any subject has "F" grade - if so, final grade is "F"
+        let hasFailedSubject = false;
+        for (const subject of subjects) {
+          const mark = marksMatrix[student.id!]?.[subject];
+          if (mark && mark.grade === "F") {
+            hasFailedSubject = true;
+            break;
+          }
+        }
+
+        if (hasFailedSubject) {
+          grades[student.id!] = "F";
+        } else {
+          // Calculate overall grade based on average GPA only if no subject is failed
+          const avgGPA = totalSubjects > 0 ? totalGradePoints / totalSubjects : 0;
+          if (avgGPA >= 5.0) grades[student.id!] = "A+";
+          else if (avgGPA >= 4.0) grades[student.id!] = "A";
+          else if (avgGPA >= 3.5) grades[student.id!] = "A-";
+          else if (avgGPA >= 3.0) grades[student.id!] = "B";
+          else if (avgGPA >= 2.0) grades[student.id!] = "C";
+          else if (avgGPA >= 1.0) grades[student.id!] = "D";
+          else grades[student.id!] = "F";
+        }
+      }
+
+      // Calculate positions based on total marks
+      const sortedByTotal = students
+        .map((student) => ({
+          studentId: student.id!,
+          total: totals[student.id!],
+        }))
+        .sort((a, b) => b.total - a.total);
+
+      const positions: { [studentId: number]: number } = {};
+      sortedByTotal.forEach((item, index) => {
+        positions[item.studentId] = index + 1;
+      });
+
+      setTabulationData({
+        students,
+        subjects,
+        marksMatrix,
+        totals,
+        grades,
+        positions,
+      });
+    } catch (error) {
+      console.error("Error loading tabulation data:", error);
+      toast.error("Failed to load tabulation data");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -1065,6 +1260,21 @@ export function Marksheet() {
               </CardDescription>
             </CardHeader>
           </Card>
+
+          <Card
+            className="cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => setMode("tabulation")}
+          >
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TableIcon className="h-5 w-5" />
+                Tabulation Sheet
+              </CardTitle>
+              <CardDescription>
+                Generate section-wise tabulation sheet in landscape format
+              </CardDescription>
+            </CardHeader>
+          </Card>
         </div>
       )}
 
@@ -1238,6 +1448,149 @@ export function Marksheet() {
         </div>
       )}
 
+      {/* Tabulation Sheet */}
+      {mode === "tabulation" && (
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Tabulation Sheet Generator</CardTitle>
+              <CardDescription>
+                Generate section/group wise tabulation sheet in landscape format
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Exam *</Label>
+                  <Select value={selectedExam} onValueChange={setSelectedExam}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select exam" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Half-Yearly">Half-Yearly</SelectItem>
+                      <SelectItem value="Yearly">Yearly</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Class *</Label>
+                  <Select
+                    value={selectedClass}
+                    onValueChange={setSelectedClass}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select class" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[6, 7, 8, 9, 10].map((cls) => (
+                        <SelectItem key={cls} value={cls.toString()}>
+                          Class {cls}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {parseInt(selectedClass) >= 9 &&
+                parseInt(selectedClass) <= 10 ? (
+                  <div className="space-y-2">
+                    <Label>Group *</Label>
+                    <Select
+                      value={selectedGroup}
+                      onValueChange={setSelectedGroup}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select group" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {getGroups(parseInt(selectedClass)).map((group) => (
+                          <SelectItem key={group} value={group}>
+                            {group}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label>Section *</Label>
+                    <Select
+                      value={selectedSection}
+                      onValueChange={setSelectedSection}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select section" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="A">Section A</SelectItem>
+                        <SelectItem value="B">Section B</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-4">
+                <Button
+                  onClick={loadTabulationData}
+                  disabled={
+                    !selectedExam ||
+                    !selectedClass ||
+                    (parseInt(selectedClass) >= 9 &&
+                    parseInt(selectedClass) <= 10
+                      ? !selectedGroup
+                      : !selectedSection) ||
+                    loading
+                  }
+                  className="w-full sm:w-auto"
+                >
+                  {loading ? "Loading..." : "Generate Tabulation Sheet"}
+                </Button>
+                <Button variant="outline" onClick={() => setMode("")} className="w-full sm:w-auto">
+                  Back
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {tabulationData && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+                  <span>Tabulation Sheet Preview</span>
+                  <Button onClick={generatePDF} disabled={generating} className="w-full sm:w-auto">
+                    <Download className="mr-2 h-4 w-4" />
+                    {generating ? "Generating..." : "Download PDF"}
+                  </Button>
+                </CardTitle>
+                <CardDescription>
+                  Landscape format tabulation sheet for {tabulationData.students.length} students
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <div ref={marksheetRef}>
+                    <TabulationSheet
+                      students={tabulationData.students}
+                      subjects={tabulationData.subjects}
+                      marksMatrix={tabulationData.marksMatrix}
+                      totals={tabulationData.totals}
+                      grades={tabulationData.grades}
+                      positions={tabulationData.positions}
+                      selectedExam={selectedExam}
+                      selectedClass={selectedClass}
+                      selectedSection={selectedSection}
+                      selectedGroup={selectedGroup}
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
       {/* Individual Marksheet */}
       {mode === "individual" && (
         <div className="space-y-6">
@@ -1369,7 +1722,7 @@ export function Marksheet() {
           </Card>
 
           {studentMarksheet && (
-            <Card>
+            <Card className="w-full max-w-[max-content] mx-auto">
               <CardHeader>
                 <CardTitle className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
                   <span>Marksheet Preview</span>
