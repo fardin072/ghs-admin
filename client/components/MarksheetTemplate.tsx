@@ -125,7 +125,44 @@ export function MarksheetTemplate({
           </p>
         </div>
       </div>
+      {/* Student Information */}
+      <div className="grid grid-cols-4 gap-3 mb-4">
+        <div className="border border-gray-300 p-2 rounded">
+          <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
+            Student Name
+          </div>
+          <div className="text-sm font-bold text-gray-800 border-b border-dotted border-gray-400 pb-1">
+            {marksheet.student.name}
+          </div>
+        </div>
 
+        <div className="border border-gray-300 p-2 rounded">
+          <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
+            Class
+          </div>
+          <div className="text-sm font-bold text-gray-800 border-b border-dotted border-gray-400 pb-1">
+            Class {marksheet.student.class}
+          </div>
+        </div>
+
+        <div className="border border-gray-300 p-2 rounded">
+          <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
+            Roll Number
+          </div>
+          <div className="text-sm font-bold text-gray-800 border-b border-dotted border-gray-400 pb-1">
+            {marksheet.student.roll}
+          </div>
+        </div>
+
+        <div className="border border-gray-300 p-2 rounded">
+          <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
+            Section
+          </div>
+          <div className="text-sm font-bold text-gray-800 border-b border-dotted border-gray-400 pb-1">
+            {marksheet.student.section}
+          </div>
+        </div>
+      </div>
       {/* Marks Table */}
       <div className="mb-4">
         <div className="bg-gray-800 text-white p-2 rounded-t-lg">
@@ -334,7 +371,6 @@ export function MarksheetTemplate({
           </div>
         </div>
       </div>
-
       {/* Signature Section */}
       <div className="mt-4 pt-3 border-t-2 border-gray-300">
         <div className="grid grid-cols-3 gap-4 text-center">
@@ -361,7 +397,6 @@ export function MarksheetTemplate({
           </div>
         </div>
       </div>
-
       {/* Footer */}
       <div className="mt-3 pt-2 border-t border-gray-300 text-center">
         <p className="text-xs text-gray-500">

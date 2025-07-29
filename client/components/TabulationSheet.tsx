@@ -5,7 +5,6 @@ interface TabulationSheetProps {
   subjects: string[];
   marksMatrix: { [studentId: number]: { [subject: string]: Mark | null } };
   totals: { [studentId: number]: number };
-  grades: { [studentId: number]: string };
   positions: { [studentId: number]: number };
   selectedExam: string;
   selectedClass: string;
@@ -13,12 +12,91 @@ interface TabulationSheetProps {
   selectedGroup?: string;
 }
 
+// Grade calculation logic for each subject
+const calculateGrade = (
+  marks: number,
+  totalMarks: number = 100,
+  subject: string = "",
+  classNum: number = 0
+): { grade: string; gradePoint: number } => {
+  // Adjust total marks to 50 for certain subjects
+  if (
+    (classNum >= 6 && classNum <= 8 && subject === "Bangla 2nd Paper") ||
+    (classNum >= 6 && classNum <= 8 && subject === "English 2nd Paper") ||
+    (subject === "Digital Technology (ICT)" || subject === "Arts & Culture / Work & Arts")
+  ) {
+    totalMarks = 50;
+  }
+
+  const percentage = (marks / totalMarks) * 100;
+
+  if (percentage >= 80) return { grade: "A+", gradePoint: 5.0 };
+  if (percentage >= 70) return { grade: "A", gradePoint: 4.0 };
+  if (percentage >= 60) return { grade: "A-", gradePoint: 3.5 };
+  if (percentage >= 50) return { grade: "B", gradePoint: 3.0 };
+  if (percentage >= 40) return { grade: "C", gradePoint: 2.0 };
+  if (percentage >= 33) return { grade: "D", gradePoint: 1.0 };
+  return { grade: "F", gradePoint: 0.0 };
+};
+
+// Calculate the overall grade and GPA for a student
+const calculateOverallGrade = (
+  studentId: number,
+  subjects: string[],
+  marksMatrix: { [studentId: number]: { [subject: string]: Mark | null } },
+  selectedClass: number
+): { overallGrade: string, gpa: number } => {
+  let totalGradePoints = 0;
+  let totalSubjects = 0;
+  let hasFailedSubject = false;
+
+  // Loop through each subject for the student
+  subjects.forEach((subject) => {
+    const mark = marksMatrix[studentId]?.[subject];
+    if (mark) {
+      // Check if the subject requires 50 total marks, adjust accordingly
+      const totalMarks = 
+        (selectedClass >= 6 && selectedClass <= 8 && (subject === "Bangla 2nd Paper" || subject === "English 2nd Paper"))
+        || subject === "Digital Technology (ICT)"
+        || subject === "Arts & Culture / Work & Arts"
+        ? 50
+        : 100;
+      
+      const { gradePoint, grade } = calculateGrade(mark.total, totalMarks, subject, selectedClass);
+      totalGradePoints += gradePoint;
+      totalSubjects += 1;
+
+      // If any subject is failed, mark the student as failed
+      if (grade === "F") {
+        hasFailedSubject = true;
+      }
+    }
+  });
+
+  // If any subject is failed, the final grade is "F"
+  if (hasFailedSubject) {
+    return { overallGrade: "F", gpa: 0 };
+  }
+
+  // Otherwise, calculate the GPA
+  const gpa = totalGradePoints / (totalSubjects * 5); // Max grade per subject is 5.0
+  let overallGrade = "F";
+
+  if (gpa >= 4.5) overallGrade = "A+";
+  else if (gpa >= 4.0) overallGrade = "A";
+  else if (gpa >= 3.5) overallGrade = "A-";
+  else if (gpa >= 3.0) overallGrade = "B";
+  else if (gpa >= 2.0) overallGrade = "C";
+  else if (gpa >= 1.0) overallGrade = "D";
+
+  return { overallGrade, gpa };
+};
+
 export function TabulationSheet({
   students,
   subjects,
   marksMatrix,
   totals,
-  grades,
   positions,
   selectedExam,
   selectedClass,
@@ -27,10 +105,8 @@ export function TabulationSheet({
 }: TabulationSheetProps) {
   const currentYear = new Date().getFullYear();
   const isHighClass = parseInt(selectedClass) >= 9 && parseInt(selectedClass) <= 10;
-  
+
   // Calculate students per page based on available space
-  // A4 landscape: 210mm height - header (~70mm) - footer (~50mm) - margins (~20mm) = ~70mm
-  // Each row is approximately 6mm with increased fonts, so we can fit about 13 students per page
   const studentsPerPage = 13;
   const totalPages = Math.ceil(students.length / studentsPerPage);
   
@@ -41,6 +117,11 @@ export function TabulationSheet({
     const endIndex = Math.min(startIndex + studentsPerPage, students.length);
     studentPages.push(students.slice(startIndex, endIndex));
   }
+
+  // Calculate the pass rate and failed students dynamically
+  const passedStudents = students.filter(student => positions[student.id!] !== "F");
+  const failedStudents = students.length - passedStudents.length;
+  const passRate = students.length > 0 ? ((passedStudents.length / students.length) * 100).toFixed(1) : "0";
 
   return (
     <div className="space-y-0">
@@ -119,9 +200,6 @@ export function TabulationSheet({
                     Total
                   </th>
                   <th className="border border-gray-400 p-2 text-center font-bold text-gray-800 w-12">
-                    Grade
-                  </th>
-                  <th className="border border-gray-400 p-2 text-center font-bold text-gray-800 w-12">
                     Position
                   </th>
                 </tr>
@@ -129,6 +207,7 @@ export function TabulationSheet({
               <tbody>
                 {pageStudents.map((student, index) => {
                   const globalIndex = pageIndex * studentsPerPage + index;
+                  const { overallGrade } = calculateOverallGrade(student.id!, subjects, marksMatrix, parseInt(selectedClass));
                   return (
                     <tr key={student.id} className={index % 2 === 0 ? "bg-gray-50" : "bg-white"}>
                       <td className="border border-gray-400 p-2 text-center text-sm">
@@ -142,10 +221,13 @@ export function TabulationSheet({
                       </td>
                       {subjects.map((subject) => {
                         const mark = marksMatrix[student.id!]?.[subject];
+                        const { grade } = calculateGrade(mark?.total || 0, 100, subject, parseInt(selectedClass));
                         return (
                           <td
                             key={subject}
-                            className="border border-gray-400 p-2 text-center text-sm"
+                            className={`border border-gray-400 p-2 text-center text-sm ${
+                              grade === "F" ? "bg-red-200" : ""
+                            }`}
                           >
                             {mark ? mark.total : 0}
                           </td>
@@ -153,9 +235,6 @@ export function TabulationSheet({
                       })}
                       <td className="border border-gray-400 p-2 text-center font-bold bg-blue-50 text-sm">
                         {totals[student.id!] || 0}
-                      </td>
-                      <td className="border border-gray-400 p-2 text-center font-bold text-sm">
-                        {grades[student.id!] || "F"}
                       </td>
                       <td className="border border-gray-400 p-2 text-center font-bold bg-green-50 text-sm">
                         {positions[student.id!] || "-"}
@@ -166,78 +245,6 @@ export function TabulationSheet({
               </tbody>
             </table>
           </div>
-
-          {/* Summary Section - only show on last page */}
-          {pageIndex === totalPages - 1 && (
-            <div className="grid grid-cols-3 gap-4 mb-4">
-              <div className="bg-blue-50 p-3 rounded border border-blue-200">
-                <h4 className="text-base font-bold text-blue-800 mb-2">STATISTICS</h4>
-                <div className="text-sm space-y-1">
-                  <div>Total Students: <span className="font-bold">{students.length}</span></div>
-                  <div>Total Subjects: <span className="font-bold">{subjects.length}</span></div>
-                  <div>Examination: <span className="font-bold">{selectedExam}</span></div>
-                </div>
-              </div>
-
-              <div className="bg-green-50 p-3 rounded border border-green-200">
-                <h4 className="text-base font-bold text-green-800 mb-2">GRADING SCALE</h4>
-                <div className="text-sm space-y-1">
-                  <div>A+ (80-100%) - 5.00 | A (70-79%) - 4.00</div>
-                  <div>A- (60-69%) - 3.50 | B (50-59%) - 3.00</div>
-                  <div>C (40-49%) - 2.00 | D (33-39%) - 1.00</div>
-                  <div>F (0-32%) - 0.00</div>
-                  <div className="mt-2 text-gray-600 italic text-xs">*Any subject fail = Final grade F</div>
-                </div>
-              </div>
-
-              <div className="bg-gray-50 p-3 rounded border border-gray-200">
-                <h4 className="text-base font-bold text-gray-800 mb-2">PERFORMANCE</h4>
-                <div className="text-sm space-y-1">
-                  {(() => {
-                    const passed = students.filter(s => grades[s.id!] !== "F").length;
-                    const failed = students.length - passed;
-                    const passRate = students.length > 0 ? (passed / students.length * 100).toFixed(1) : "0";
-                    return (
-                      <>
-                        <div>Passed: <span className="font-bold text-green-600">{passed}</span></div>
-                        <div>Failed: <span className="font-bold text-red-600">{failed}</span></div>
-                        <div>Pass Rate: <span className="font-bold">{passRate}%</span></div>
-                      </>
-                    );
-                  })()}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Signature Section - only show on last page */}
-          {pageIndex === totalPages - 1 && (
-            <div className="mt-6 pt-4 border-t-2 border-gray-300">
-              <div className="grid grid-cols-3 gap-8 text-center">
-                <div className="space-y-3">
-                  <div className="h-10 border-b border-gray-400"></div>
-                  <div>
-                    <p className="font-bold text-gray-800 text-sm">Class Teacher</p>
-                    <p className="text-sm text-gray-600">Signature & Date</p>
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  <div className="h-10 border-b border-gray-400"></div>
-                  <div>
-                    <p className="font-bold text-gray-800 text-sm">Headmaster</p>
-                    <p className="text-sm text-gray-600">Signature & Date</p>
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  <div className="h-10 border-b border-gray-400"></div>
-                  <div>
-                    <p className="font-bold text-gray-800 text-sm">Examination Controller</p>
-                    <p className="text-sm text-gray-600">Signature & Date</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Footer */}
           <div className="mt-4 pt-2 border-t border-gray-300 text-center">
